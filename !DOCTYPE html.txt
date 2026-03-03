@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Open 26.1 Thailand Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #f9fafb;
+            --card-bg: #ffffff;
+            --text-main: #111827;
+            --text-muted: #6b7280;
+            --border-color: #e5e7eb;
+            --primary: #2563eb;
+            --radius: 8px;
+            --font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin: 0;
+            font-weight: 600;
+        }
+
+        .filters {
+            display: flex;
+            gap: 12px;
+        }
+
+        select {
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            background: var(--card-bg);
+            font-size: 0.9rem;
+            outline: none;
+        }
+
+        /* Summary Cards */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        .card-title {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 8px;
+        }
+
+        .card-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+        }
+
+        /* Charts */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .chart-container {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            position: relative;
+            height: 300px;
+        }
+
+        .chart-container.full-width {
+            grid-column: 1 / -1;
+            height: 400px;
+        }
+
+        /* Table */
+        .table-container {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            border: 1px solid var(--border-color);
+            overflow-x: auto;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th, td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background: #fdfdfd;
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        th:hover {
+            color: var(--text-main);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Loading state */
+        #loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Open 26.1 Thailand</h1>
+        <div class="filters">
+            <select id="filter-gender">
+                <option value="all">All Genders</option>
+                <option value="M">Male</option>
+                <option value="F">Female</option>
+            </select>
+            <select id="filter-division">
+                <option value="all">All Divisions</option>
+                <option value="Rx">Rx</option>
+                <option value="Scaled">Scaled</option>
+            </select>
+        </div>
+    </header>
+
+    <div id="loading">Loading data...</div>
+
+    <div id="dashboard-content" style="display: none;">
+        <div class="summary-grid">
+            <div class="card">
+                <div class="card-title">Total Athletes</div>
+                <div class="card-value" id="val-total">0</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Mean Score</div>
+                <div class="card-value" id="val-mean">0</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Median Score</div>
+                <div class="card-value" id="val-median">0</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Top Score</div>
+                <div class="card-value" id="val-top">0</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Standard Deviation</div>
+                <div class="card-value" id="val-stddev">0</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Top 10% Cutoff</div>
+                <div class="card-value" id="val-p90">0</div>
+            </div>
+        </div>
+
+        <div class="charts-grid">
+            <div class="chart-container full-width">
+                <canvas id="histogramChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <canvas id="genderChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <canvas id="divisionChart"></canvas>
+            </div>
+        </div>
+
+        <h2 style="font-size: 1.2rem; margin-top: 32px;">Top 20 Leaderboard</h2>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th onclick="sortTable('rank')">Rank ↕</th>
+                        <th onclick="sortTable('athlete_name')">Athlete ↕</th>
+                        <th onclick="sortTable('gender')">Gender ↕</th>
+                        <th onclick="sortTable('division')">Division ↕</th>
+                        <th onclick="sortTable('affiliate')">Affiliate ↕</th>
+                        <th onclick="sortTable('score')">Score ↕</th>
+                    </tr>
+                </thead>
+                <tbody id="table-body">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- CONFIGURATION ---
+    // Change this filename if your CSV file is named differently
+    const CSV_FILENAME = 'open26_1_thailand.csv';
+    
+    let rawData = [];
+    let currentData = [];
+    let charts = {};
+    let sortCol = 'score';
+    let sortAsc = false;
+
+    // --- UTILITY FUNCTIONS ---
+    // A simple CSV parser (handles basic commas, ignores commas inside quotes)
+    function parseCSV(text) {
+        const lines = text.trim().split('\n');
+        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+        const result = [];
+        
+        for(let i = 1; i < lines.length; i++) {
+            // Regex to split by comma, but keep commas inside quotes intact
+            const row = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || lines[i].split(',');
+            if(row.length === 0 || !row[0]) continue;
+            
+            const obj = {};
+            headers.forEach((header, index) => {
+                let val = row[index] ? row[index].trim().replace(/^"|"$/g, '') : '';
+                // Try to parse numbers where appropriate
+                if (header === 'score' || header === 'rank') {
+                    val = parseFloat(val) || 0;
+                }
+                obj[header] = val;
+            });
+            result.push(obj);
+        }
+        return result;
+    }
+
+    // Math statistics helpers
+    const getMean = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+    const getMedian = arr => {
+        if (!arr.length) return 0;
+        const s = [...arr].sort((a, b) => a - b);
+        const mid = Math.floor(s.length / 2);
+        return s.length % 2 !== 0 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+    };
+    const getStdDev = (arr, mean) => {
+        if(arr.length < 2) return 0;
+        const variance = arr.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / arr.length;
+        return Math.sqrt(variance);
+    };
+    const getPercentile = (arr, p) => {
+        if (!arr.length) return 0;
+        const s = [...arr].sort((a, b) => a - b);
+        const index = Math.ceil((p / 100) * s.length) - 1;
+        return s[index];
+    };
+
+    // --- MAIN LOGIC ---
+    async function loadData() {
+        try {
+            const response = await fetch(CSV_FILENAME);
+            if (!response.ok) throw new Error("Could not load CSV");
+            const text = await response.text();
+            rawData = parseCSV(text);
+            
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('dashboard-content').style.display = 'block';
+            
+            applyFilters(); // Initial render
+        } catch (error) {
+            document.getElementById('loading').innerHTML = `Error loading data. <br><small>If running locally, ensure you use a local web server (e.g. Live Server) due to CORS restrictions.</small>`;
+            console.error(error);
+        }
+    }
+
+    function applyFilters() {
+        const gender = document.getElementById('filter-gender').value;
+        const division = document.getElementById('filter-division').value;
+
+        currentData = rawData.filter(row => {
+            const matchGender = gender === 'all' || row.gender === gender;
+            const matchDiv = division === 'all' || row.division === division;
+            return matchGender && matchDiv;
+        });
+
+        updateDashboard();
+    }
+
+    function updateDashboard() {
+        const scores = currentData.map(d => d.score);
+        
+        // 1. Update Cards
+        const mean = getMean(scores);
+        document.getElementById('val-total').innerText = currentData.length;
+        document.getElementById('val-mean').innerText = mean.toFixed(1);
+        document.getElementById('val-median').innerText = getMedian(scores).toFixed(1);
+        document.getElementById('val-top').innerText = scores.length ? Math.max(...scores) : 0;
+        document.getElementById('val-stddev').innerText = getStdDev(scores, mean).toFixed(1);
+        document.getElementById('val-p90').innerText = getPercentile(scores, 90).toFixed(1); // 90th percentile (Top 10% cutoff if higher is better)
+
+        // 2. Update Charts
+        updateCharts();
+
+        // 3. Update Table
+        renderTable();
+    }
+
+    function updateCharts() {
+        Chart.defaults.font.family = 'system-ui, -apple-system, sans-serif';
+        Chart.defaults.color = '#6b7280';
+
+        // Histogram Data (10 bins)
+        const scores = currentData.map(d => d.score);
+        const min = Math.min(...scores) || 0;
+        const max = Math.max(...scores) || 1;
+        const binSize = (max - min) / 10 || 1;
+        const bins = Array(10).fill(0);
+        const labels = Array(10).fill('').map((_, i) => `${Math.floor(min + i * binSize)} - ${Math.floor(min + (i + 1) * binSize)}`);
+        
+        scores.forEach(s => {
+            let index = Math.floor((s - min) / binSize);
+            if (index >= 10) index = 9; // Catch max value
+            bins[index]++;
+        });
+
+        renderChart('histogramChart', 'bar', labels, bins, 'Score Distribution', '#3b82f6');
+
+        // Gender Avg
+        const males = currentData.filter(d => d.gender === 'M').map(d => d.score);
+        const females = currentData.filter(d => d.gender === 'F').map(d => d.score);
+        renderChart('genderChart', 'bar', ['Male', 'Female'], [getMean(males), getMean(females)], 'Avg Score by Gender', ['#2563eb', '#ec4899']);
+
+        // Division Avg
+        const rx = currentData.filter(d => d.division === 'Rx').map(d => d.score);
+        const scaled = currentData.filter(d => d.division === 'Scaled').map(d => d.score);
+        renderChart('divisionChart', 'bar', ['Rx', 'Scaled'], [getMean(rx), getMean(scaled)], 'Avg Score by Division', ['#10b981', '#f59e0b']);
+    }
+
+    function renderChart(canvasId, type, labels, data, title, colors) {
+        const ctx = document.getElementById(canvasId).getContext('2d');
+        if (charts[canvasId]) {
+            charts[canvasId].destroy();
+        }
+        charts[canvasId] = new Chart(ctx, {
+            type: type,
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: title,
+                    data: data,
+                    backgroundColor: colors,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    title: { display: true, text: title, font: {size: 14} }
+                }
+            }
+        });
+    }
+
+    function sortTable(col) {
+        if (sortCol === col) {
+            sortAsc = !sortAsc;
+        } else {
+            sortCol = col;
+            sortAsc = true;
+        }
+        renderTable();
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('table-body');
+        tbody.innerHTML = '';
+
+        // Sort data
+        const sortedData = [...currentData].sort((a, b) => {
+            let valA = a[sortCol];
+            let valB = b[sortCol];
+            
+            if (typeof valA === 'string') valA = valA.toLowerCase();
+            if (typeof valB === 'string') valB = valB.toLowerCase();
+
+            if (valA < valB) return sortAsc ? -1 : 1;
+            if (valA > valB) return sortAsc ? 1 : -1;
+            return 0;
+        });
+
+        // Take Top 20
+        const displayData = sortedData.slice(0, 20);
+
+        displayData.forEach(row => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${row.rank || '-'}</td>
+                <td><strong>${row.athlete_name || 'Unknown'}</strong></td>
+                <td>${row.gender || '-'}</td>
+                <td>${row.division || '-'}</td>
+                <td>${row.affiliate || '-'}</td>
+                <td style="font-weight: 600;">${row.score || 0}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    // Event Listeners
+    document.getElementById('filter-gender').addEventListener('change', applyFilters);
+    document.getElementById('filter-division').addEventListener('change', applyFilters);
+
+    // Initialize
+    loadData();
+
+</script>
+</body>
+</html>
